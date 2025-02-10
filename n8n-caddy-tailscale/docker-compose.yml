@@ -1,0 +1,56 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT}
+      - WEBHOOK_URL=https://${PUBLIC_DOMAIN}/
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - internal
+      - caddy
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./tailscale/tmp/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+    networks:
+      - caddy
+    env_file:
+      - .env
+
+  tailscale:
+    image: tailscale/tailscale
+    container_name: tailscale
+    restart: unless-stopped
+    network_mode: "host"  # Required for Tailscale to function
+    volumes:
+      - /dev/net/tun:/dev/net/tun
+      - ./tailscale/varlib:/var/lib
+      - ./tailscale/tmp:/tmp
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}  # Automatically authenticate Tailscale
+      - TS_STATE_DIR=/var/lib/tailscale
+
+volumes:
+  n8n_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    internal: true
+  caddy:
+    external: false

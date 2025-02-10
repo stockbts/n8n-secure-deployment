@@ -1,0 +1,38 @@
+api:
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    exposedByDefault: false
+
+certificatesResolvers:
+  myresolver:
+        tailscale: {}
+  letsencrypt:
+    acme:
+      email: [YOUR_EMAIL]
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+
+
+http:
+  routers:
+    routertailscale:
+      service: "myservice"
+      rule: "Host(`n8n-server-traefik.[YOUR_TAILNET].ts.net`) && Path(`/tailscale`)"
+      tls:
+        certResolver: tailscale
+
+  services:
+    myservice:
+      loadBalancer:
+        servers:
+         - url: "http://localhost:6060"
+

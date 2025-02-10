@@ -1,0 +1,19 @@
+{
+    email {$USER_EMAIL}
+}
+
+# Public Webhooks Only
+{$PUBLIC_DOMAIN} {
+    reverse_proxy /webhook* http://n8n:5678
+    reverse_proxy /webhook-test* http://n8n:5678
+
+    @block_non_webhooks {
+        not path /webhook* /webhook-test*
+    }
+    respond @block_non_webhooks "403 Forbidden" 403
+}
+
+# Private Access via Tailscale
+{$TAILSCALE_DOMAIN} {
+    reverse_proxy http://n8n:5678
+}

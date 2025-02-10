@@ -1,0 +1,82 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT}
+      - WEBHOOK_URL=https://${PUBLIC_DOMAIN}/
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+    labels:
+      - "traefik.enable=true"
+      # Public Webhooks
+      - "traefik.http.routers.n8n-webhook.rule=Host(`${PUBLIC_DOMAIN}`) && (PathPrefix(`/webhook/`) || PathPrefix(`/webhook-test/`))"
+      - "traefik.http.routers.n8n-webhook.entrypoints=websecure"
+      - "traefik.http.routers.n8n-webhook.tls.certresolver=letsencrypt"
+      - "traefik.http.middlewares.n8n-webhook-headers.headers.customResponseHeaders.X-Robots-Tag=noindex,nofollow"
+      - "traefik.http.routers.n8n-webhook.middlewares=n8n-webhook-headers"
+
+      # Private UI Access via Tailscale
+      - "traefik.http.routers.n8n-ui.rule=Host(`${TAILSCALE_DOMAIN}`)"
+      - "traefik.http.routers.n8n-ui.entrypoints=websecure"
+      - "traefik.http.routers.n8n-ui.tls.certresolver=myresolver"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - internal
+      - proxy
+
+  traefik:
+    image: traefik
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=your@email.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.tailscale=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - traefik_data:/letsencrypt
+      - ./tailscale/tmp/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+    networks:
+      - proxy
+    env_file:
+      - .env    
+
+  tailscale:
+    image: tailscale/tailscale
+    container_name: tailscale
+    restart: unless-stopped
+    network_mode: "host"
+    labels:
+        - "traefik.http.routers.tailscale.rule=Path(`/metrics`)"
+        - "traefik.http.routers.tailscale.tls.certresolver=myresolver"
+        - "traefik.http.routers.tailscale.tls.domains[0].main=${TAILSCALE_AUTH_KEY}"
+    volumes:
+      - /dev/net/tun:/dev/net/tun
+      - ./tailscale/varlib:/var/lib
+      - ./tailscale/tmp:/tmp
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}  # Automatically authenticate Tailscale
+      - TS_STATE_DIR=/var/lib/tailscale
+
+volumes:
+  n8n_data:
+  traefik_data:
+
+networks:
+  internal:
+    internal: true
+  proxy:
+    external: false
