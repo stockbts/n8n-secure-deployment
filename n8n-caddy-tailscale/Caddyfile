@@ -2,8 +2,9 @@
     email {$USER_EMAIL}
 }
 
-# Public Webhooks Only
+# Public Webhooks Only - with SSL certificates
 {$PUBLIC_DOMAIN} {
+    tls /ssl/cert.pem /ssl/key.pem
     reverse_proxy /webhook* http://n8n:5678
     reverse_proxy /webhook-test* http://n8n:5678
 

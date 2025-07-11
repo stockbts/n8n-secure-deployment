@@ -25,7 +25,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
-      - ./tailscale/tmp/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+      - ./tailscale/tmp:/var/run/tailscale
+      - ./ssl:/ssl
     networks:
       - caddy
     env_file:
@@ -34,6 +35,7 @@ services:
   tailscale:
     image: tailscale/tailscale
     container_name: tailscale
+    hostname: n8n
     restart: unless-stopped
     network_mode: "host"  # Required for Tailscale to function
     volumes:
@@ -43,6 +45,7 @@ services:
     environment:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}  # Automatically authenticate Tailscale
       - TS_STATE_DIR=/var/lib/tailscale
+      - TS_HOSTNAME=n8n
 
 volumes:
   n8n_data:

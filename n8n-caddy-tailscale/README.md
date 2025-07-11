@@ -1,196 +1,181 @@
-# n8n + Caddy + Tailscale: Secure Automation with Private UI & Public Webhooks
+# n8n Secure Deployment with Caddy and Tailscale
 
-(How to Securely Host n8n with Caddy Reverse Proxy & Tailscale Wireguard network)
-
-## 🌟 Introduction
-
-This setup is designed for **secure, automated workflow execution** with **n8n**, **Caddy**, and **Tailscale**. It solves common security and access control challenges by ensuring that **only webhooks are publicly accessible**, while keeping the **n8n UI, login, and workflows private** within a Tailscale network.
+This deployment provides a secure n8n workflow automation server with:
+- **Public webhooks** accessible via HTTPS
+- **Private admin interface** accessible only via Tailscale network
+- **Automatic SSL certificates** via Let's Encrypt
+- **DNS-01 challenge support** for firewalled environments
 
 ## Prerequisites
 
-Docker and Docker Compose installed on your system. You should also have public DNS name available and point it to public IP Address of your n8n server.
-An active Tailscale account. You will need to do following things additionally:
-- Enable [HTTPs](https://tailscale.com/kb/1153/enabling-https) and [MagicDNS](https://tailscale.com/kb/1081/magicdns) in Tailscale [DNS config](https://login.tailscale.com/admin/dns) 
-- [Add Auth Key](https://login.tailscale.com/admin/settings/keys)
+### System Requirements
+- Docker and Docker Compose installed
+- Public DNS domain pointing to server's public IP
+- Active Tailscale account
+
+### Tailscale Setup
+1. Create a Tailscale account at https://tailscale.com/
+2. Enable [HTTPS](https://tailscale.com/kb/1153/enabling-https) in Tailscale DNS settings
+3. Enable [MagicDNS](https://tailscale.com/kb/1081/magicdns) in Tailscale DNS settings
+4. Generate [Auth Key](https://login.tailscale.com/admin/settings/keys) (reusable key recommended)
 
 
-### 🚀 Problems This Setup Solves:
-- **Public exposure of n8n UI**: Many self-hosted n8n setups leave the admin panel exposed to the internet, increasing security risks.
-- **Secure webhook handling**: Some automation workflows need public webhooks but shouldn't expose the entire n8n instance.
-- **Complex SSL management**: Manually setting up and renewing SSL certificates can be a hassle.
-- **Lack of private networking**: Running n8n in a secure, isolated environment without a VPN can be challenging.
+### DNS Setup
+Choose one of these options for your public domain:
 
-### 🎯 Suitable Use-Cases:
-- **Teams using Tailscale for internal services**: Securely access the n8n UI only within your private Tailscale network.
-- **Users requiring public webhooks**: Expose only `/webhook/*` endpoints while keeping everything else private.
-- **Developers and businesses automating workflows**: Run n8n with confidence, knowing that the admin panel is protected.
-- **Self-hosted automation without exposing infrastructure**: No need for complex VPN setups or firewall rules.
+#### Option A: DuckDNS (Recommended for home servers)
+1. Go to https://www.duckdns.org/
+2. Create a free account
+3. Create a subdomain (e.g., `your-name-n8n.duckdns.org`)
+4. Point it to your server's public IP
+5. Get your DuckDNS token from the account page
 
-With this setup, you can leverage **Tailscale for private networking**, **Caddy for automated SSL and reverse proxying**, and **n8n for powerful workflow automation** in a **secure and manageable** way.
+#### Option B: Traditional DNS Provider
+1. Purchase a domain from any DNS provider
+2. Create an A record pointing to your server's public IP
+3. Update your domain's nameservers if needed
 
----
+## Architecture
 
-## 📂 Folder Structure
-```
-n8n-caddy-tailscale/
-│-- docker-compose.yml
-│-- Caddyfile
-│-- .env  # Store environment variables here
-│-- logs.sh
-│-- start.sh
-│-- stop.sh
-│-- README.md
-```
+### Security Model
+- **Public Access**: Only `/webhook/*` and `/webhook-test/*` endpoints are exposed to the internet
+- **Private Access**: n8n admin UI, login, and workflows are only accessible via Tailscale private network
+- **SSL/TLS**: Automatic certificate management via Let's Encrypt for public domains and Tailscale for private domains
 
----
+### Services
+- **n8n**: Workflow automation engine
+- **Caddy**: Reverse proxy with automatic SSL
+- **Tailscale**: Private networking service
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1️⃣ Clone this repository
-```sh
-git clone https://github.com/telepilotco/n8n-secure-deployment.git
-cd n8n-secure-deployment/n8n-caddy-tailscale/
-```
-
-### 2️⃣ Configure `.env`
-Create and edit a `.env` file:
-```ini
-# n8n Configuration
-N8N_HOST=0.0.0.0
-N8N_PORT=5678
-
-# Public Domain for Webhooks
-PUBLIC_DOMAIN=n8n.yourdomain.com
-
-# Private Tailscale Domain
-TAILSCALE_DOMAIN=n8n-server-caddy.[YOUR_TAILNET].ts.net
-
-WEBHOOK_URL=https://n8n.yourdomain.com
-GENERIC_TIMEZONE=UTC
-
-# Tailscale Authentication Key (Get from https://login.tailscale.com/admin/settings/keys)
-TAILSCALE_AUTH_KEY=[YOUR_TAILSCALE_KEY]
-
-#Email for automatic SSL Certificate management via Let's Encrypt
-USER_EMAIL=example@email.com
+### 1. Clone and Setup
+```bash
+git clone <this-repo>
+cd n8n-secure-deployment/n8n-caddy-tailscale
+cp .env.example .env
 ```
 
-### 3️⃣ Start the Containers
-```sh
-sh start.sh
+### 2. Configure Environment
+Edit `.env` file with your values:
+```bash
+# Your public domain for webhooks
+PUBLIC_DOMAIN=your-domain.duckdns.org
+
+# Your Tailscale domain (get from: tailscale status)
+TAILSCALE_DOMAIN=your-hostname.your-tailnet.ts.net
+
+# Your email for SSL certificates
+USER_EMAIL=your-email@example.com
+
+# Your Tailscale auth key
+TAILSCALE_AUTH_KEY=your-tailscale-auth-key-here
+
+# DuckDNS token (if using DuckDNS)
+DUCKDNS_TOKEN=your-duckdns-token-here
 ```
 
-### 4️⃣ Access n8n Securely
-- **Public Webhooks:** `https://n8n.yourdomain.com/webhook/...`
-- **Admin & Workflows (Private):** `https://n8n-server-caddy.[YOUR_TAILNET].ts.net`
-
----
-
-## 📜 Configuration Files
-
-### **docker-compose.yml**
-This file defines deployment of n8n, Caddy and Tailscale services and networks. 
-Configration includes:
-
-1. Tailscale service: Configures Tailscale to be run in docker environment with private Auth Key and enables secure communication between Tailscale private network and other Docker services
-
-2. Caddy webserver / rewrite proxy: Sets up Caddy to run according to configuration specified in Caddyfile, exposing ports 80 and 443. Tailnet SSL certificates are fetched via shared Tailscale socket file
-
-3. n8n service: Sets up n8n to run behind Caddy reverse proxy, and configures webhooks to be accessible only via public domain
-
-### **Caddyfile**
-Handles SSL, reverse proxy, and access control.
-
-```caddyfile
-{
-    email {$USER_EMAIL}
-}
-
-# Public Webhooks Only
-{$PUBLIC_DOMAIN} {
-    reverse_proxy /webhook* http://n8n:5678
-    reverse_proxy /webhook-test* http://n8n:5678
-
-    @block_non_webhooks {
-        not path /webhook* /webhook-test*
-    }
-    respond @block_non_webhooks "403 Forbidden" 403
-}
-
-# Private Access via Tailscale
-{$TAILSCALE_DOMAIN} {
-    reverse_proxy http://n8n:5678
-}
+### 3. Start Services
+```bash
+chmod +x start.sh
+./start.sh
 ```
 
----
-
-## 🔄 Managing the Setup
-
-### Restart Containers
-```sh
-docker-compose restart
+### 4. Generate SSL Certificates (if behind firewall)
+If you're behind a firewall that blocks HTTP-01 challenges:
+```bash
+chmod +x get-ssl-cert.sh
+./get-ssl-cert.sh
 ```
 
-### Check Logs
-```sh
-sh logs.sh
+### 5. Access n8n
+- **Private Admin**: https://your-hostname.your-tailnet.ts.net/
+- **Public Webhooks**: https://your-domain.duckdns.org/webhook/*
+
+## SSL Certificate Options
+
+### Automatic (Default)
+Caddy will automatically obtain SSL certificates via HTTP-01 challenge. This works if:
+- Your server is publicly accessible on ports 80/443
+- No firewall blocks Let's Encrypt verification
+
+### Manual (Firewalled Environments)
+If automatic SSL fails, use DNS-01 challenge:
+1. Configure `DUCKDNS_TOKEN` in `.env`
+2. Run `./get-ssl-cert.sh`
+3. Certificates will be saved to `./ssl/` directory
+
+## Management Commands
+
+### Service Control
+```bash
+# Start services
+./start.sh
+
+# Stop services
+./stop.sh
+
+# View logs
+./logs.sh
+
+# Restart specific service
+docker-compose restart caddy
+docker-compose restart n8n
+docker-compose restart tailscale
 ```
 
-### Stop the Setup
-```sh
-sh stop.sh
-```
+### Troubleshooting
+```bash
+# Check service status
+docker-compose ps
 
----
-
-## 🛡️ Security Notes
-- **Only webhooks are exposed to the public domain (`n8n.yourdomain.com`).**
-- **Admin, workflows, and login are private within Tailscale (`n8n-server.ts.net`).**
-- **Tailscale provides a secure, encrypted tunnel for private access.**
-- **Caddy auto-renews SSL certificates using Let's Encrypt.**
-
----
-
-## 💡 Troubleshooting
-
-### SSL Not Issued for `.ts.net`
-Ensure your Tailscale node is reachable publicly for HTTP-01 validation:
-```sh
-tailscale funnel 443
-```
-Or use DNS-01 validation with a provider like Cloudflare.
-
-### Cannot Access n8n UI
-Ensure your device is connected to Tailscale and try:
-```sh
-ping n8n-server.ts.net
-```
-
-### Check Tailscale Status
-```sh
+# Check Tailscale status
 docker exec -it tailscale tailscale status
-```
 
-### Check caddy logs
-```sh
+# View specific service logs
 docker logs -f caddy
+docker logs -f n8n
+docker logs -f tailscale
+
+# Test webhook access
+curl -I https://your-domain.duckdns.org/webhook/test
+
+# Test private access (from Tailscale network)
+curl -I https://your-hostname.your-tailnet.ts.net/
 ```
 
-If setup does not work and you see following error message in caddy logs, restart everything by running `sh stop.sh && sh start.sh`:
-```
-ubuntu@n8n-server-caddy:~/n8n-secure-deployment/n8n-caddy-tailscale$ docker logs -f caddy
-...
-{"level":"warn","ts":1739114793.4415128,"logger":"http","msg":"could not get status; will try to get certificate anyway","error":"Get \"http://local-tailscaled.sock/localapi/v0/status\": dial unix /var/run/tailscale/tailscaled.sock: connect: connection refused"}
-{"level":"error","ts":1739114793.4416132,"logger":"tls.handshake","msg":"external certificate manager","remote_ip":"172.21.0.1","remote_port":"53466","sni":"n8n-server-caddy.[YOUR_TAILNET].ts.net","cert_manager":"caddytls.Tailscale","cert_manager_idx":0,"error":"Get \"http://local-tailscaled.sock/localapi/v0/cert/n8n-server-caddy.[YOUR_TAILNET].ts.net?type=pair\": dial unix /var/run/tailscale/tailscaled.sock: connect: connection refused"}
-```
----
+## Security Features
 
-## 📌 Summary
-✅ **n8n is secure behind Tailscale**  
-✅ **Webhooks are publicly accessible with SSL**  
-✅ **Admin panel is only available inside Tailscale**  
-✅ **Caddy automatically handles SSL certificates**  
+### Access Control
+- **Webhooks**: Public access via `https://PUBLIC_DOMAIN/webhook/*`
+- **Admin UI**: Private access via `https://TAILSCALE_DOMAIN/`
+- **All other endpoints**: Blocked with 403 Forbidden
 
-🚀 Enjoy secure and private automation with n8n, Caddy, and Tailscale!
+### Network Isolation
+- n8n runs in isolated internal network
+- Only reverse proxy bridges internal and external networks
+- Tailscale provides encrypted private network access
+
+### SSL/TLS
+- Let's Encrypt certificates for public domains
+- Tailscale certificates for private domains (.ts.net)
+- Automatic certificate renewal
+
+## Common Issues
+
+### SSL Certificate Errors
+- **Cause**: Tailscale HTTPS/MagicDNS not enabled
+- **Solution**: Enable in Tailscale DNS settings
+
+### Tailscale Connection Issues
+- **Cause**: Invalid auth key or network connectivity
+- **Solution**: Verify auth key and check `docker logs tailscale`
+
+### Service Not Starting
+- **Cause**: Configuration errors
+- **Solution**: Check `docker-compose logs` and verify `.env` file
+
+### Webhook Access Issues
+- **Cause**: DNS or firewall configuration
+- **Solution**: Verify public domain DNS and firewall rules
 

@@ -1,0 +1,48 @@
+# Environment files with sensitive information
+.env
+
+# SSL certificates and private keys
+ssl/
+*.pem
+*.key
+*.crt
+
+# Tailscale data
+tailscale/
+
+# Docker data
+docker-data/
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*.backup
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+
+# n8n data backups
+n8n-backup.tar.gz
+*.tar.gz
+
+# acme.sh data
+.acme.sh/
+
+# System files
+.env.local
+.env.*.local
